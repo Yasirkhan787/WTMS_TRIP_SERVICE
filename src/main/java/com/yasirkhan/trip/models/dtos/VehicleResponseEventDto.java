@@ -20,6 +20,7 @@ public class VehicleResponseEventDto {
     private EventStatus eventTypeStatus; // SUCCESS, FAILURE
     private String vehicleNo;
     private String tehsilId;
+    private String trackingId;
     private Double mileage;
     private String status;
 
@@ -28,6 +29,7 @@ public class VehicleResponseEventDto {
         if (vehicleData != null) {
             this.vehicleNo = (String) vehicleData.get("vehicleNo");
             this.tehsilId = (String) vehicleData.get("tehsilId");
+            this.trackingId = (String) vehicleData.get("trackingId");
             this.mileage = (Double) vehicleData.get("mileage");
             this.status = (String) vehicleData.get("status");
         }

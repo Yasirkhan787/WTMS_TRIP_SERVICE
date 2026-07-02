@@ -25,15 +25,15 @@ public class FeignConfig {
                     String serviceName = "TRIP_SERVICE";
                     long currentTimestamp = System.currentTimeMillis();
 
-                    // 1. Combine the data (The Secret is NEVER sent over the network!)
+                    // Combine the data (The Secret is NEVER sent over the network!)
                     String rawData = serviceName + currentTimestamp + internalSecret;
 
-                    // 2. Hash it using SHA-256
+                    // Hash it using SHA-256
                     MessageDigest digest = MessageDigest.getInstance("SHA-256");
                     byte[] hash = digest.digest(rawData.getBytes(StandardCharsets.UTF_8));
                     String signature = Base64.getEncoder().encodeToString(hash);
 
-                    // 3. Attach the public data and the secure signature
+                    // Attach the public data and the secure signature
                     template.header("X-Service-Name", serviceName);
                     template.header("X-Timestamp", String.valueOf(currentTimestamp));
                     template.header("X-Signature", signature);

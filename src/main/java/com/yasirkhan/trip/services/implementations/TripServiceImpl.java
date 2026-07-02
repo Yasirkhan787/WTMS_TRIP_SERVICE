@@ -62,9 +62,9 @@ public class TripServiceImpl implements TripService {
     @Override
     @Transactional
     public void syncDailyTrips(String wmc) {
-        LocalDate today = LocalDate.of(2026, 6, 8); // Switch to LocalDate.now() for prod
+        LocalDate today = LocalDate.of(2026, 6, 6); // Switch to LocalDate.now() for prod
 
-        // 1. Pre-fetch valid vehicles from local cache
+        // Pre-fetch valid vehicles from local cache
         Set<String> validVehicles = new HashSet<>();
         try {
             Set<String> keys = redisTemplate.keys("wtms:vehicle:*");
@@ -79,7 +79,7 @@ public class TripServiceImpl implements TripService {
             return;
         }
 
-        // 2. Fetch daily trips using typed DTOs
+        // Fetch daily trips using typed DTOs
         List<AskTrackerTripsResponseDto.AskTrackSlipDto> dailySlips = askTrackClient.fetchDailyTrips(wmc, today);
 
         for (AskTrackerTripsResponseDto.AskTrackSlipDto slip : dailySlips) {
@@ -114,7 +114,7 @@ public class TripServiceImpl implements TripService {
             LocalDate tripDate = loadTime.toLocalDate();
             LocalTime tripTime = loadTime.toLocalTime();
 
-            // 3. Resolve Schedule
+            // Resolve Schedule
             UUID activeScheduleId = null;
             try {
                 ScheduleResponseDto schedule = scheduleClient.findActiveScheduleForTrip(
@@ -134,14 +134,14 @@ public class TripServiceImpl implements TripService {
                 continue;
             }
 
-            // 4. Extract Actual Distance & Construct LINESTRING
+            // Extract Actual Distance & Construct LINESTRING
             String trackerId = "00033650";
 
             Object cachedTrackerId = redisTemplate.opsForHash().get("wtms:vehicle:" + vehicleNo, "trackerId");
 
             if (cachedTrackerId != null) {
                 try {
-                    // It is now safe to call .toString()
+
                     trackerId = cachedTrackerId.toString();
                 } catch (NumberFormatException e) {
                     log.warn("Invalid trackingId format in Redis for vehicle {}, falling back to 00033650", vehicleNo);
@@ -152,7 +152,7 @@ public class TripServiceImpl implements TripService {
 
             double actualDistanceKm = 0.0;
 
-            LineString lineString = null; // Use the JTS Object instead of String
+            LineString lineString = null;
 
             TrackerResponseDto trackerResponse = askTrackClient.fetchTrackerData(trackerId, loadTime, emptyTime);
 
@@ -163,7 +163,7 @@ public class TripServiceImpl implements TripService {
                 if (trackList != null && !trackList.isEmpty()) {
 
                     // Map the DTOs directly into JTS Coordinates.
-                    // CRITICAL: JTS Coordinates are (X, Y) which means (Longitude, Latitude)!
+                    // JTS Coordinates are (X, Y) which means (Longitude, Latitude)!
                     List<Coordinate> jtsCoordinates =
                             trackList
                                     .stream()
@@ -174,16 +174,13 @@ public class TripServiceImpl implements TripService {
                 }
             }
 
-            // 5. Calculate Fuel Dynamically from Redis
-            double mileage = 4.5; // Baseline fallback
+            double mileage = 4.5;
 
-            // Safely get the object without immediately converting it
             Object cachedMileage = redisTemplate.opsForHash().get("wtms:vehicle:" + vehicleNo, "mileage");
 
-            // Only attempt to parse if Redis actually returned a value
             if (cachedMileage != null) {
                 try {
-                    // It is now safe to call .toString()
+
                     mileage = Double.parseDouble(cachedMileage.toString());
                 } catch (NumberFormatException e) {
                     log.warn("Invalid mileage format in Redis for vehicle {}, falling back to 4.5", vehicleNo);
@@ -193,7 +190,6 @@ public class TripServiceImpl implements TripService {
             }
             double fuelConsumed = actualDistanceKm / mileage;
 
-            // 6. Save the Complete Record
             TripWeight tripRecord = new TripWeight();
             tripRecord.setScheduleId(activeScheduleId);
             tripRecord.setSlipId(slipId);
