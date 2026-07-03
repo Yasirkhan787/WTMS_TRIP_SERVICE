@@ -35,7 +35,7 @@ public class LiveLocationWatchdogConsumer {
         String vehicleNo = coordinateData.getVehicleNo();
         String trackingKey = "wtms:tracking:" + vehicleNo;
 
-        // 1. Check if Trip Service has an active trip for this vehicle
+        // Check if Trip Service has an active trip for this vehicle
         Map<Object, Object> liveTrip = redisTemplate.opsForHash().entries(trackingKey);
         if (liveTrip == null || liveTrip.isEmpty()) {
             return; // No active trip, ignore telemetry
@@ -48,7 +48,7 @@ public class LiveLocationWatchdogConsumer {
         double currentLat = coordinateData.getLatitude();
         double currentLng = coordinateData.getLongitude();
 
-        // 2. Fetch Route Data (which Trip Service already synced!)
+        // Fetch Route Data
         String routeKey = "wtms:route:" + routeId;
         Map<Object, Object> cachedRoute = redisTemplate.opsForHash().entries(routeKey);
         if (cachedRoute.isEmpty()) return;
@@ -80,7 +80,7 @@ public class LiveLocationWatchdogConsumer {
         // ====================================================================
         else if ("EN_ROUTE".equalsIgnoreCase(phase)) {
 
-            // 1. Dumpsite Arrival Check
+            // Dumpsite Arrival Check
             Object dsLatObj = cachedRoute.get("destinationYardCenterLat");
             Object dsLngObj = cachedRoute.get("destinationYardCenterLng");
             Object dsRadObj = cachedRoute.get("destinationYardRadiusMeters");
@@ -100,7 +100,7 @@ public class LiveLocationWatchdogConsumer {
                 }
             }
 
-            // 2. Route Deviation Check
+            // Route Deviation Check
             String routePathWkt = (String) cachedRoute.get("path");
             if (routePathWkt != null) {
                 LineString assignedPath = SpatialUtils.parseLineString(routePathWkt);

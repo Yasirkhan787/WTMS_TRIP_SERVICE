@@ -30,7 +30,12 @@ public class VehicleResponseEventDto {
             this.vehicleNo = (String) vehicleData.get("vehicleNo");
             this.tehsilId = (String) vehicleData.get("tehsilId");
             this.trackingId = (String) vehicleData.get("trackingId");
-            this.mileage = (Double) vehicleData.get("mileage");
+
+            Object mileageObj = vehicleData.get("mileage");
+
+            if (mileageObj instanceof Number) {
+                this.mileage = ((Number) mileageObj).doubleValue();
+            }
             this.status = (String) vehicleData.get("status");
         }
     }

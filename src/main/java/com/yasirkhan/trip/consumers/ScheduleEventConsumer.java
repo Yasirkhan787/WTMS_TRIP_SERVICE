@@ -1,16 +1,20 @@
 package com.yasirkhan.trip.consumers;
 
+import com.yasirkhan.trip.models.dtos.ScheduleResponseEventDto.ScheduleDataDto;
 import com.yasirkhan.trip.models.dtos.ScheduleResponseEventDto;
-import com.yasirkhan.trip.models.enums.EventStatus;
+import com.yasirkhan.trip.models.enums.EventStatus; // <-- Make sure to import the Enum!
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 @Component
+@Slf4j
 public class ScheduleEventConsumer {
 
     private final RedisTemplate<String, Object> redisTemplate;
@@ -24,29 +28,60 @@ public class ScheduleEventConsumer {
             groupId = "trip-group",
             containerFactory = "listenerContainerFactory"
     )
-    public void handleScheduleResponse(ScheduleResponseEventDto event) {
+    public void handleScheduleEvent(ScheduleResponseEventDto event) {
+        log.info("Received Schedule event from Kafka for Vehicle No: {} with status: {}",
+                event.getScheduleData().getVehicleNo(), event.getEventTypeStatus());
 
-        if (EventStatus.SUCCESS.equals(event.getEventTypeStatus())) {
+        // FIXED: Properly compare the Enum type instead of a String!
+        if (event.getEventTypeStatus() != EventStatus.SUCCESS || event.getScheduleData() == null) {
+            log.warn("Skipping Schedule cache sync because event status was not SUCCESS or data was null.");
+            return;
+        }
 
-            ScheduleResponseEventDto.ScheduleResponse scheduleData = event.getScheduleData();
+        ScheduleDataDto schedule = event.getScheduleData();
+        String scheduleId = schedule.getScheduleId().toString();
+        String scheduleKey = "wtms:schedule:" + scheduleId;
 
-            if (scheduleData == null || scheduleData.getScheduleId() == null) {
-                return;
-            }
+        String dateString = schedule.getScheduleDate().format(DateTimeFormatter.ISO_LOCAL_DATE);
+        String dailyIndexKey = "wtms:schedules:daily:" + dateString;
 
-            UUID scheduleId = scheduleData.getScheduleId();
-            Map<String, Object> map = new HashMap<>();
+        String status = schedule.getScheduleStatus();
 
-            map.put("scheduleName", scheduleData.getScheduleName());
-            map.put("vehicleNo", scheduleData.getVehicleNo());
-            map.put("driverId", scheduleData.getDriverId() != null ? scheduleData.getDriverId().toString() : "");
-            map.put("routeId", scheduleData.getRouteId() != null ? scheduleData.getRouteId().toString() : "");
-            map.put("scheduleDate", scheduleData.getScheduleDate() != null ? scheduleData.getScheduleDate().toString() : "");
-            map.put("templateId", scheduleData.getTemplateId() != null ? scheduleData.getTemplateId().toString() : "");
-            map.put("status", scheduleData.getStatus());
+        // If the schedule is active/ongoing, sync it to the Daily Index
+        if ("ASSIGNED".equalsIgnoreCase(status) || "ACTIVE".equalsIgnoreCase(status)) {
 
-            String redisKey = "wtms:schedule:" + scheduleId;
-            redisTemplate.opsForHash().putAll(redisKey, map);
+            Map<String, String> data = new HashMap<>();
+            data.put("vehicleNo", schedule.getVehicleNo());
+            data.put("driverId", schedule.getDriverId() != null ? schedule.getDriverId().toString() : "");
+            data.put("routeId", schedule.getRouteId() != null ? schedule.getRouteId().toString() : "");
+            data.put("tehsilId", schedule.getTehsilId() != null ? schedule.getTehsilId().toString() : "");
+            data.put("startTime", schedule.getStartTime() != null ? schedule.getStartTime().toString() : "");
+            data.put("endTime", schedule.getEndTime() != null ? schedule.getEndTime().toString() : "");
+            data.put("status", status);
+
+            // 1. Save Hash
+            redisTemplate.opsForHash().putAll(scheduleKey, data);
+            redisTemplate.expire(scheduleKey, 48, TimeUnit.HOURS);
+
+            // 2. Add to Daily Watchdog Index
+            redisTemplate.opsForSet().add(dailyIndexKey, scheduleId);
+            redisTemplate.expire(dailyIndexKey, 48, TimeUnit.HOURS);
+
+            log.info("Synced active Schedule {} to Redis. Status: {}", scheduleId, status);
+        }
+        // If the schedule is finished/cancelled, clean up the cache
+        else {
+            // Remove from the daily watchdog index so it stops tracking
+            redisTemplate.opsForSet().remove(dailyIndexKey, scheduleId);
+
+            // Delete the schedule details
+            redisTemplate.delete(scheduleKey);
+
+            // Clean up any lingering active tracking or idle penalty states for this vehicle
+            redisTemplate.delete("wtms:tracking:" + schedule.getVehicleNo());
+            redisTemplate.delete("wtms:idle:" + schedule.getVehicleNo());
+
+            log.info("Removed inactive Schedule {} from Redis. Status: {}", scheduleId, status);
         }
     }
 }
