@@ -36,27 +36,39 @@ public class RouteEventConsumer {
 
             UUID routeId = routeData.getRouteId();
             Map<String, Object> map = new HashMap<>();
+
             map.put("routeName", routeData.getRouteName());
             map.put("path", routeData.getPath());
             map.put("tehsilId", routeData.getTehsilId() != null ? routeData.getTehsilId().toString() : null);
             map.put("tehsilName", routeData.getTehsilName());
+            map.put("status", routeData.getStatus());
             map.put("sourceYardId", routeData.getSourceYardId() != null ? routeData.getSourceYardId().toString() : null);
             map.put("sourceYardName", routeData.getSourceYardName());
             map.put("sourceYardType", routeData.getSourceYardType());
             map.put("destinationYardId", routeData.getDestinationYardId() != null ? routeData.getDestinationYardId().toString() : null);
             map.put("destinationYardName", routeData.getDestinationYardName());
             map.put("destinationYardType", routeData.getDestinationYardType());
-            map.put("status", routeData.getStatus());
 
-            if (event.getYardData() != null) {
-                RouteResponseEventDto.YardResponse yard = event.getYardData();
-                map.put("destinationYardBoundaryType", yard.getBoundaryType());
-                map.put("destinationYardRadiusMeters", yard.getRadiusMeters() != null ? String.valueOf(yard.getRadiusMeters()) : null);
-                map.put("destinationYardPolygonPath", yard.getPolygonPath() != null ? yard.getPolygonPath() : null);
+            if (event.getSourceYardData() != null) {
+                RouteResponseEventDto.YardResponse srcYard = event.getSourceYardData();
+                map.put("sourceYardBoundaryType", srcYard.getBoundaryType());
+                map.put("sourceYardRadiusMeters", srcYard.getRadiusMeters() != null ? String.valueOf(srcYard.getRadiusMeters()) : null);
 
-                if (yard.getCenterCoords() != null) {
-                    map.put("destinationYardCenterLat", String.valueOf(yard.getCenterCoords().getLat()));
-                    map.put("destinationYardCenterLng", String.valueOf(yard.getCenterCoords().getLng()));
+                if (srcYard.getCenterCoords() != null) {
+                    map.put("sourceYardCenterLat", String.valueOf(srcYard.getCenterCoords().getLat()));
+                    map.put("sourceYardCenterLng", String.valueOf(srcYard.getCenterCoords().getLng()));
+                }
+            }
+
+            if (event.getDestinationYardData() != null) {
+                RouteResponseEventDto.YardResponse destYard = event.getDestinationYardData();
+                map.put("destinationYardBoundaryType", destYard.getBoundaryType());
+                map.put("destinationYardRadiusMeters", destYard.getRadiusMeters() != null ? String.valueOf(destYard.getRadiusMeters()) : null);
+                map.put("destinationYardPolygonPath", destYard.getPolygonPath() != null ? destYard.getPolygonPath() : null);
+
+                if (destYard.getCenterCoords() != null) {
+                    map.put("destinationYardCenterLat", String.valueOf(destYard.getCenterCoords().getLat()));
+                    map.put("destinationYardCenterLng", String.valueOf(destYard.getCenterCoords().getLng()));
                 }
             }
 

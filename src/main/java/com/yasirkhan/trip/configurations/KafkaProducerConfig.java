@@ -24,7 +24,10 @@ public class KafkaProducerConfig {
     }
 
     @Bean
-    public NewTopic scheduleEvent() { return new NewTopic("trip-response-topic", 2, (short) 1); }
+    public NewTopic tripResponseTopic() { return new NewTopic("trip-response-topic", 2, (short) 1); }
+
+    @Bean
+    public NewTopic scheduleUpdateTopic() { return new NewTopic("schedule-update-topic", 2, (short) 1); }
 
     @Bean
     public Map<String, Object> producerConfig(){

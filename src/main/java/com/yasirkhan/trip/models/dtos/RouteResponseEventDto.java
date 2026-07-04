@@ -1,7 +1,6 @@
 package com.yasirkhan.trip.models.dtos;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.yasirkhan.trip.models.enums.EventStatus;
 import com.yasirkhan.trip.models.enums.EventType;
 import lombok.AllArgsConstructor;
@@ -9,7 +8,6 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.util.Map;
 import java.util.UUID;
 
 @Data
@@ -21,8 +19,12 @@ public class RouteResponseEventDto {
     private EventType type;
     private EventStatus eventTypeStatus;
     private RouteResponse routeData;
-    private YardResponse yardData;
 
+    // ==========================================
+    // FIXED: Distinct fields for both yards
+    // ==========================================
+    private YardResponse sourceYardData;
+    private YardResponse destinationYardData;
 
     @Data
     @JsonIgnoreProperties(ignoreUnknown = true)
@@ -72,6 +74,4 @@ public class RouteResponseEventDto {
 
         private Double lng;
     }
-
-
 }

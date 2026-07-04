@@ -71,7 +71,7 @@ public class ScheduleEventConsumer {
         }
         // If the schedule is finished/cancelled, clean up the cache
         else {
-            // Remove from the daily watchdog index so it stops tracking
+            // FIX 3: Delete from the Daily Index Set to prevent memory leaks!
             redisTemplate.opsForSet().remove(dailyIndexKey, scheduleId);
 
             // Delete the schedule details
@@ -81,7 +81,7 @@ public class ScheduleEventConsumer {
             redisTemplate.delete("wtms:tracking:" + schedule.getVehicleNo());
             redisTemplate.delete("wtms:idle:" + schedule.getVehicleNo());
 
-            log.info("Removed inactive Schedule {} from Redis. Status: {}", scheduleId, status);
+            log.info("Removed inactive Schedule {} from Redis Index. Status: {}", scheduleId, status);
         }
     }
 }

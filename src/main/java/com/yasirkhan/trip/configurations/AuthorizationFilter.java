@@ -74,15 +74,6 @@ public class AuthorizationFilter extends OncePerRequestFilter {
             request.setAttribute("username", username);
             request.setAttribute("role", role);
 
-            // 4Redis Revocation Check
-            String redisKey = "user:" + userId + ":tokenVersion";
-            // String currentRedisVersion = redisTemplate.opsForValue().get(redisKey);
-
-            /* if (currentRedisVersion == null || !currentRedisVersion.equals(String.valueOf(tokenVersion))) {
-                throw new UnauthorizedException("Session expired or revoked. Please log in again.");
-            }
-            */
-
             // Authenticate in Spring Context
             if (userId != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                 String authorityRole = role.startsWith("ROLE_") ? role : "ROLE_" + role.toUpperCase();

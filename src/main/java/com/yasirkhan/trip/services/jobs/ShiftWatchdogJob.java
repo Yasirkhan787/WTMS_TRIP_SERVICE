@@ -1,5 +1,6 @@
 package com.yasirkhan.trip.services.jobs;
 
+import com.yasirkhan.trip.models.dtos.SystemAlertEventDto; // <-- Make sure you have this DTO in your Trip Service!
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -9,7 +10,6 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -68,19 +68,32 @@ public class ShiftWatchdogJob {
                 continue;
             }
 
-            // Driver is on the clock but has NO active trip. Check their telemetry speed.
-            Object speedObj = redisTemplate.opsForValue().get("wtms:telemetry:speed:" + vehicleNo);
+            // ===============================================================
+            // TIER 1 EVALUATION: Driver is on the clock but has NO active trip
+            // ===============================================================
+
+            // FIXED: Read from the correct live telemetry hash synced by LiveLocationWatchdogConsumer
+            Object speedObj = redisTemplate.opsForHash().get("wtms:live:vehicle:" + vehicleNo, "speed");
 
             if (speedObj != null) {
                 double currentSpeed = Double.parseDouble(speedObj.toString());
 
+                String idleKey = "wtms:idle:" + vehicleNo;
+                String penaltyKey = "wtms:flags:idle_penalty:" + vehicleNo;
+
                 if (currentSpeed == 0.0) {
+
+                    // ANTI-SPAM GATE: Have we already alerted the supervisor for this specific parking incident?
+                    if (Boolean.TRUE.equals(redisTemplate.hasKey(penaltyKey))) {
+                        continue; // Vehicle is still parked. Do not spam. Wait for them to move.
+                    }
+
                     // Increment Idle Counter
-                    String idleKey = "wtms:idle:" + vehicleNo;
                     Long idleMinutes = redisTemplate.opsForValue().increment(idleKey, 5); // Add 5 mins
                     redisTemplate.expire(idleKey, 4, TimeUnit.HOURS); // Clean up memory automatically later
 
                     if (idleMinutes != null && idleMinutes >= 20) {
+
                         // FIRE IDLE ALERT: Truck parked for 20+ mins during shift
                         sendSystemAlertEvent(
                                 tehsilId,
@@ -90,24 +103,30 @@ public class ShiftWatchdogJob {
                                 String.format("Vehicle %s has been stationary for 20+ minutes during scheduled shift without starting a trip.", vehicleNo)
                         );
 
-                        // Reset counter to avoid spamming every 5 mins
+                        // Set the Penalty Flag for 12 hours so we don't alert again until they move!
+                        redisTemplate.opsForValue().set(penaltyKey, "true", 12, TimeUnit.HOURS);
+
+                        // Reset counter since alert was fired
                         redisTemplate.delete(idleKey);
                     }
                 } else {
-                    // Truck is moving, reset the idle counter
-                    redisTemplate.delete("wtms:idle:" + vehicleNo);
+                    // Truck is moving! Reset EVERYTHING so they can be tracked fairly again.
+                    redisTemplate.delete(idleKey);
+                    redisTemplate.delete(penaltyKey);
                 }
             }
         }
     }
 
+    // FIXED: Safely uses the DTO so the Notification Service doesn't crash on deserialization
     private void sendSystemAlertEvent(String tehsilId, String vehicleNo, String eventType, String title, String message) {
-        Map<String, Object> alertEvent = new HashMap<>();
-        alertEvent.put("eventType", eventType);
-        alertEvent.put("targetTehsilId", tehsilId);
-        alertEvent.put("vehicleNo", vehicleNo);
-        alertEvent.put("title", title);
-        alertEvent.put("message", message);
+        SystemAlertEventDto alertEvent = SystemAlertEventDto.builder()
+                .eventType(eventType)
+                .targetTehsilId(tehsilId)
+                .vehicleNo(vehicleNo)
+                .title(title)
+                .message(message)
+                .build();
 
         kafkaTemplate.send("system-alerts-topic", alertEvent);
     }
